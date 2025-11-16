@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 INSTALL_DIR="${INSTALL_DIR:-$HOME/rpc-health-check}"
-REPO_URL="https://raw.githubusercontent.com/YOUR_USERNAME/rpc-health-check/main"
+REPO_URL="https://raw.githubusercontent.com/0xChicharito/rpc-health-check/main"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║   RPC Health Check - Auto Installer                   ║${NC}"
