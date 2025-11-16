@@ -46,95 +46,6 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-# ===== PROMPT FOR RPC URLs IF NOT IN .ENV =====
-prompt_for_rpcs() {
-    local need_eth_rpc=false
-    local need_beacon=false
-    local need_backup_eth=false
-    local need_backup_beacon=false
-    
-    # Check what's missing
-    if [ -z "$(read_env_value 'ETHEREUM_RPC_URL')" ]; then
-        need_eth_rpc=true
-    fi
-    
-    if [ -z "$(read_env_value 'CONSENSUS_BEACON_URL')" ]; then
-        need_beacon=true
-    fi
-    
-    if [ -z "$(read_env_value 'BACKUP_ETHEREUM_RPCS')" ]; then
-        need_backup_eth=true
-    fi
-    
-    if [ -z "$(read_env_value 'BACKUP_BEACON_URLS')" ]; then
-        need_backup_beacon=true
-    fi
-    
-    # If nothing is missing, return
-    if [ "$need_eth_rpc" = false ] && [ "$need_beacon" = false ] && [ "$need_backup_eth" = false ] && [ "$need_backup_beacon" = false ]; then
-        return 0
-    fi
-    
-    # Prompt for missing values
-    echo "════════════════════════════════════════════════"
-    echo "  RPC Configuration Required"
-    echo "════════════════════════════════════════════════"
-    echo ""
-    
-    if [ "$need_eth_rpc" = true ]; then
-        echo "Enter your Ethereum RPC URL:"
-        read -p "> " eth_rpc
-        if [ -n "$eth_rpc" ]; then
-            echo "ETHEREUM_RPC_URL=$eth_rpc" >> "$ENV_FILE"
-            log "✓ Ethereum RPC URL added to .env"
-        fi
-        echo ""
-    fi
-    
-    if [ "$need_beacon" = true ]; then
-        echo "Enter your Consensus Beacon URL:"
-        read -p "> " beacon_url
-        if [ -n "$beacon_url" ]; then
-            echo "CONSENSUS_BEACON_URL=$beacon_url" >> "$ENV_FILE"
-            log "✓ Consensus Beacon URL added to .env"
-        fi
-        echo ""
-    fi
-    
-    if [ "$need_backup_eth" = true ]; then
-        echo "Enter backup Ethereum RPC URLs (comma-separated):"
-        echo "Example: https://eth.llamarpc.com,https://rpc.ankr.com/eth"
-        read -p "> " backup_eth
-        if [ -n "$backup_eth" ]; then
-            echo "BACKUP_ETHEREUM_RPCS=$backup_eth" >> "$ENV_FILE"
-            log "✓ Backup Ethereum RPCs added to .env"
-        else
-            # Use defaults
-            echo "BACKUP_ETHEREUM_RPCS=https://eth.llamarpc.com,https://rpc.ankr.com/eth,https://eth.drpc.org" >> "$ENV_FILE"
-            log "✓ Default backup Ethereum RPCs added to .env"
-        fi
-        echo ""
-    fi
-    
-    if [ "$need_backup_beacon" = true ]; then
-        echo "Enter backup Beacon URLs (comma-separated):"
-        echo "Example: https://ethereum-beacon-api.publicnode.com"
-        read -p "> " backup_beacon
-        if [ -n "$backup_beacon" ]; then
-            echo "BACKUP_BEACON_URLS=$backup_beacon" >> "$ENV_FILE"
-            log "✓ Backup Beacon URLs added to .env"
-        else
-            # Use defaults
-            echo "BACKUP_BEACON_URLS=https://ethereum-beacon-api.publicnode.com,https://beaconstate.ethstaker.cc" >> "$ENV_FILE"
-            log "✓ Default backup Beacon URLs added to .env"
-        fi
-        echo ""
-    fi
-    
-    echo "✓ Configuration saved to .env"
-    echo ""
-}
-
 # ===== TELEGRAM NOTIFICATION =====
 send_telegram_message() {
     local message=$1
@@ -155,6 +66,46 @@ send_telegram_message() {
         log "✓ Telegram notification sent successfully"
     else
         log "✗ Failed to send Telegram notification"
+    fi
+}
+
+# ===== DOCKER COMPOSE RESTART =====
+restart_docker_compose() {
+    local docker_restart_enabled=$(read_env_value "DOCKER_COMPOSE_RESTART")
+    
+    if [ "$docker_restart_enabled" != "true" ]; then
+        return 0  # Skip if not enabled
+    fi
+    
+    # Check if docker-compose file exists
+    if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ]; then
+        log "⚠ Docker Compose file not found, skipping restart"
+        return 1
+    fi
+    
+    log "🔄 Restarting Docker Compose stack..."
+    
+    # Try docker compose (v2) first, then docker-compose (v1)
+    if command -v docker &> /dev/null; then
+        if docker compose version &> /dev/null 2>&1; then
+            docker compose restart
+            local exit_code=$?
+        else
+            docker-compose restart
+            local exit_code=$?
+        fi
+        
+        if [ $exit_code -eq 0 ]; then
+            log "✓ Docker Compose stack restarted successfully"
+            send_telegram_message "🔄 <b>Docker Restart</b>%0A%0ADocker Compose stack restarted due to RPC failure%0A%0ATime: $(date '+%Y-%m-%d %H:%M:%S')"
+            return 0
+        else
+            log "✗ Failed to restart Docker Compose stack"
+            return 1
+        fi
+    else
+        log "⚠ Docker not found, skipping restart"
+        return 1
     fi
 }
 
@@ -390,12 +341,9 @@ main() {
     
     if [ ! -f "$ENV_FILE" ]; then
         log "✗ File $ENV_FILE does not exist!"
-        echo "Please create .env file in current directory first"
+        echo "Please run install.sh first to configure the monitoring system"
         exit 1
     fi
-    
-    # Prompt for RPC URLs if not in .env
-    prompt_for_rpcs
     
     # Load Telegram configuration
     load_telegram_config
@@ -409,6 +357,7 @@ main() {
     
     if [ -z "$CURRENT_ETH_RPC" ] || [ -z "$CURRENT_BEACON" ]; then
         log "✗ RPC URLs not configured in .env file"
+        echo "Please run install.sh to configure RPC endpoints"
         exit 1
     fi
     
@@ -450,6 +399,9 @@ main() {
             update_env_file "ETHEREUM_RPC_URL" "$new_rpc"
             log "✓ Switched to backup RPC: $new_rpc"
             
+            # Restart Docker Compose if enabled
+            restart_docker_compose
+            
             # Send Telegram notification
             send_telegram_message "🚨 <b>RPC Failure Alert</b>%0A%0A❌ Ethereum RPC failed after $MAX_RETRIES attempts:%0A<code>$CURRENT_ETH_RPC</code>%0A%0A✅ Switched to backup RPC:%0A<code>$new_rpc</code>%0A%0ATime: $(date '+%Y-%m-%d %H:%M:%S')"
         else
@@ -484,6 +436,9 @@ main() {
         if [ $? -eq 0 ]; then
             update_env_file "CONSENSUS_BEACON_URL" "$new_beacon"
             log "✓ Switched to backup Beacon: $new_beacon"
+            
+            # Restart Docker Compose if enabled
+            restart_docker_compose
             
             # Send Telegram notification
             send_telegram_message "🚨 <b>Beacon Failure Alert</b>%0A%0A❌ Consensus Beacon failed after $MAX_RETRIES attempts:%0A<code>$CURRENT_BEACON</code>%0A%0A✅ Switched to backup Beacon:%0A<code>$new_beacon</code>%0A%0ATime: $(date '+%Y-%m-%d %H:%M:%S')"
