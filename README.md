@@ -24,14 +24,14 @@ Automatically monitor Ethereum RPC and Consensus Beacon health, replace with bac
 ### Method 1: One-Command Install (Recommended)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/rpc-health-check/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/0xChicharito/rpc-health-check/main/install.sh | bash
 ```
 
 ### Method 2: Manual Install
 
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/rpc-health-check.git
+git clone https://github.com/0xChicharito/rpc-health-check.git
 cd rpc-health-check
 
 # Run installer
@@ -43,9 +43,9 @@ chmod +x install.sh
 
 ```bash
 # Download files
-wget https://raw.githubusercontent.com/YOUR_USERNAME/rpc-health-check/main/rpc_health_check.sh
-wget https://raw.githubusercontent.com/YOUR_USERNAME/rpc-health-check/main/setup_cron.sh
-wget https://raw.githubusercontent.com/YOUR_USERNAME/rpc-health-check/main/.env.example
+wget https://raw.githubusercontent.com/0xChicharito/rpc-health-check/main/rpc_health_check.sh
+wget https://raw.githubusercontent.com/0xChicharito/rpc-health-check/main/setup_cron.sh
+wget https://raw.githubusercontent.com/0xChicharito/rpc-health-check/main/.env.example
 
 # Setup
 chmod +x rpc_health_check.sh setup_cron.sh
@@ -64,8 +64,8 @@ The `.env` file contains all configuration. Example:
 
 ```bash
 # Primary RPC endpoints
-ETHEREUM_RPC_URL=https://rpc-eth.node9x.com
-CONSENSUS_BEACON_URL=https://beacon-eth.node9x.com
+ETHEREUM_RPC_URL=https://xxxxx.node9x.com
+CONSENSUS_BEACON_URL=https://xxxxx.node9x.com
 
 # Validator configuration
 VALIDATOR_PRIVATE_KEYS=0x...
